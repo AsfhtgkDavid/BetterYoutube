@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Mix Playlist Restorer
 // @namespace    https://github.com/BetterYoutube
-// @version      1.2.0
+// @version      1.3.0
 // @description  Restores the playlist panel (ytd-playlist-panel-renderer) by removing the 'hidden' attribute when watching YouTube Mixes or playlists with an active account, and hides it back when 'list' is missing.
 // @author       David Lishchyshen
 // @match        https://www.youtube.com/*
@@ -32,14 +32,13 @@
     function updatePanelVisibility(panel) {
         if (!panel) return;
 
-        if (hasListParam()) {
-            if (panel.hasAttribute('hidden')) {
-                panel.removeAttribute('hidden');
-            }
-        } else {
-            if (!panel.hasAttribute('hidden')) {
-                panel.setAttribute('hidden', '');
-            }
+        const shouldShow = hasListParam();
+        const isHidden = panel.hasAttribute('hidden');
+
+        if (shouldShow && isHidden) {
+            panel.removeAttribute('hidden');
+        } else if (!shouldShow && !isHidden) {
+            panel.setAttribute('hidden', '');
         }
     }
 
@@ -68,11 +67,14 @@
     }
 
     /**
-     * Проверяет все найденные панели в DOM.
+     * Проверяет все найденные панели в DOM и обновляет их состояние.
      */
     function scanAndUpdate() {
         const panels = document.querySelectorAll(PANEL_TAG);
-        panels.forEach(attachPanelObserver);
+        panels.forEach((panel) => {
+            attachPanelObserver(panel);
+            updatePanelVisibility(panel); // гарантируем обновление при yt-navigate-finish
+        });
     }
 
     /**
