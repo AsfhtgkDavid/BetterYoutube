@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Mix Playlist Restorer
 // @namespace    https://github.com/BetterYoutube
-// @version      1.0.0
+// @version      1.1.0
 // @description  Restores the playlist panel (ytd-playlist-panel-renderer) by removing the 'hidden' attribute when watching YouTube Mixes or playlists with an active account.
 // @author       David Lishchyshen
 // @match        https://www.youtube.com/*
@@ -18,11 +18,19 @@
     const observedPanels = new WeakSet();
 
     /**
+     * Проверяет наличие query-параметра "list" в текущем URL.
+     * @returns {boolean}
+     */
+    function hasListParam() {
+        return new URLSearchParams(window.location.search).has('list');
+    }
+
+    /**
      * Removes the 'hidden' attribute from the playlist panel element.
      * @param {Element} panel
      */
     function unhidePanel(panel) {
-        if (!panel) return;
+        if (!panel || !hasListParam()) return;
         if (panel.hasAttribute('hidden')) {
             panel.removeAttribute('hidden');
         }
@@ -37,11 +45,12 @@
         if (!panel || observedPanels.has(panel)) return;
         observedPanels.add(panel);
 
-        // Unhide immediately
+        // Unhide immediately if list param is present
         unhidePanel(panel);
 
         // Dedicated observer specifically for this panel's attributes
         const panelObserver = new MutationObserver((mutations) => {
+            if (!hasListParam()) return;
             for (const mutation of mutations) {
                 if (mutation.attributeName === 'hidden') {
                     unhidePanel(panel);
@@ -59,6 +68,7 @@
      * Scans the document for any existing playlist panels.
      */
     function scanAndUnhide() {
+        if (!hasListParam()) return;
         const panels = document.querySelectorAll(PANEL_TAG);
         panels.forEach(attachPanelObserver);
     }
@@ -70,6 +80,8 @@
         scanAndUnhide();
 
         const bodyObserver = new MutationObserver((mutations) => {
+            if (!hasListParam()) return;
+
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
