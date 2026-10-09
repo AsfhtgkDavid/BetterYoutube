@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube Mix Playlist Restorer
 // @namespace    https://github.com/BetterYoutube
-// @version      1.1.0
-// @description  Restores the playlist panel (ytd-playlist-panel-renderer) by removing the 'hidden' attribute when watching YouTube Mixes or playlists with an active account.
+// @version      1.2.0
+// @description  Restores the playlist panel (ytd-playlist-panel-renderer) by removing the 'hidden' attribute when watching YouTube Mixes or playlists with an active account, and hides it back when 'list' is missing.
 // @author       David Lishchyshen
 // @match        https://www.youtube.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
@@ -18,7 +18,7 @@
     const observedPanels = new WeakSet();
 
     /**
-     * Проверяет наличие query-параметра "list" в текущем URL.
+     * Проверяет наличие query-параметра "list" в URL.
      * @returns {boolean}
      */
     function hasListParam() {
@@ -26,34 +26,37 @@
     }
 
     /**
-     * Removes the 'hidden' attribute from the playlist panel element.
+     * Синхронизирует видимость панели со статусом параметра 'list'.
      * @param {Element} panel
      */
-    function unhidePanel(panel) {
-        if (!panel || !hasListParam()) return;
-        if (panel.hasAttribute('hidden')) {
-            panel.removeAttribute('hidden');
+    function updatePanelVisibility(panel) {
+        if (!panel) return;
+
+        if (hasListParam()) {
+            if (panel.hasAttribute('hidden')) {
+                panel.removeAttribute('hidden');
+            }
+        } else {
+            if (!panel.hasAttribute('hidden')) {
+                panel.setAttribute('hidden', '');
+            }
         }
     }
 
     /**
-     * Attaches a targeted MutationObserver to watch and remove the 'hidden' attribute
-     * if YouTube re-applies it during playback or track changes.
+     * Наблюдает за изменениями атрибута hidden у конкретной панели.
      * @param {Element} panel
      */
     function attachPanelObserver(panel) {
         if (!panel || observedPanels.has(panel)) return;
         observedPanels.add(panel);
 
-        // Unhide immediately if list param is present
-        unhidePanel(panel);
+        updatePanelVisibility(panel);
 
-        // Dedicated observer specifically for this panel's attributes
         const panelObserver = new MutationObserver((mutations) => {
-            if (!hasListParam()) return;
             for (const mutation of mutations) {
                 if (mutation.attributeName === 'hidden') {
-                    unhidePanel(panel);
+                    updatePanelVisibility(panel);
                 }
             }
         });
@@ -65,23 +68,20 @@
     }
 
     /**
-     * Scans the document for any existing playlist panels.
+     * Проверяет все найденные панели в DOM.
      */
-    function scanAndUnhide() {
-        if (!hasListParam()) return;
+    function scanAndUpdate() {
         const panels = document.querySelectorAll(PANEL_TAG);
         panels.forEach(attachPanelObserver);
     }
 
     /**
-     * Monitors the DOM for when ytd-playlist-panel-renderer is added to the page.
+     * Следит за добавлением панелей в DOM.
      */
     function initDOMWatcher() {
-        scanAndUnhide();
+        scanAndUpdate();
 
         const bodyObserver = new MutationObserver((mutations) => {
-            if (!hasListParam()) return;
-
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -105,13 +105,13 @@
         }
     }
 
-    // Initialize as soon as DOM is interactive
+    // Инициализация при готовности DOM
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initDOMWatcher);
     } else {
         initDOMWatcher();
     }
 
-    // YouTube SPA navigation handler: re-scan when moving between videos/playlists
-    window.addEventListener('yt-navigate-finish', scanAndUnhide);
+    // Срабатывает при каждом переходе внутри SPA YouTube
+    window.addEventListener('yt-navigate-finish', scanAndUpdate);
 })();
